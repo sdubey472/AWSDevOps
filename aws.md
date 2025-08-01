@@ -60,25 +60,180 @@ This guide provides an in-depth breakdown of major AWS services, covering their 
 
 ## 2. Lambda (Serverless Compute)
 
-**Purpose:** Run code without provisioning servers ("serverless").
+# AWS Lambda & API Gateway Deep Dive with Example, Security Best Practices & Instructional Diagram
 
-**Advanced Concepts:**
-- Event Sources: S3, DynamoDB, Kinesis, API Gateway, EventBridge, etc.
-- Layers: Share code and dependencies across multiple functions.
-- Concurrency Controls: Reserved and provisioned concurrency for predictable scaling.
-- VPC Integration: Access private resources securely.
-- Destinations: Send results to SQS, SNS, EventBridge, or Lambda.
+This guide covers:
+- What is AWS Lambda?
+- How to expose Lambda via API Gateway (step-by-step)
+- A sample Lambda function and API Gateway integration
+- Security best practices
+- Visual diagram (ASCII and downloadable image)
+- Step-by-step instruction
 
-**Diagram:**
+---
+
+## 1. What is AWS Lambda?
+
+AWS Lambda is a serverless compute service that runs your code in response to events and automatically manages the underlying compute resources.
+
+- **No server management**
+- **Automatic scaling**
+- **Pay only for usage**
+- **Event-driven**
+
+---
+
+## 2. How Lambda & API Gateway Work Together
+
+API Gateway acts as a “front door” for applications to access data, business logic, or functionality from Lambda functions.
+
+### Architecture Diagram (ASCII)
+
 ```
-[ S3/File Upload ] ----+
-                      |
-[ API Gateway ] -------+------> [ Lambda Function ] ----> [ DynamoDB/S3/RDS/Other ]
-                      |
-[ EventBridge ] ------+
++---------+    HTTPS   +-------------------+   Invoke   +---------------+
+|  Client | ---------> |  API Gateway      | ---------> | Lambda        |
++---------+            | - Auth (Cognito)  |            | - Least Priv. |
+                       | - Rate Limiting   |            | - Logs        |
+                       | - WAF             |            | - VPC (opt)   |
+                       +-------------------+            +---------------+
+                              |                                 |
+                              v                                 v
+                        [CloudWatch]                      [Other AWS Services]
 ```
 
-**Use Cases:** Real-time file processing, REST APIs, automation, IoT, glue code between services.
+---
+
+### Architecture Diagram (Image)
+
+You can use this open-source diagram, which does not require AWS account authentication and is free to use:
+
+![Lambda API Gateway Integration Diagram](https://raw.githubusercontent.com/aws-samples/aws-serverless-workshops/master/WebApplication/images/architecture-overview.png)
+
+*Source: [AWS Serverless Workshops on GitHub](https://github.com/aws-samples/aws-serverless-workshops)*
+
+If you want to ensure always-available images, download the image and add it to your repo, then reference it via a local path.
+
+---
+
+## 3. Step-by-Step: Exposing Lambda with API Gateway
+
+### Prerequisites
+
+- AWS account
+- IAM permissions to create Lambda, API Gateway
+
+---
+
+### Step 1: Create Your Lambda Function
+
+1. Navigate to **AWS Lambda** in the AWS Console.
+2. Click **Create function**.
+3. Choose **Author from scratch**.
+4. Set:
+   - Name: `HelloWorldFunction`
+   - Runtime: Python 3.x or Node.js 18.x
+5. Paste the code below:
+
+**Python Example:**
+```python
+def lambda_handler(event, context):
+    name = event.get("queryStringParameters", {}).get("name", "World")
+    return {
+        "statusCode": 200,
+        "body": f"Hello, {name}!"
+    }
+```
+
+**Node.js Example:**
+```javascript
+exports.handler = async (event) => {
+    const name = event.queryStringParameters?.name || "World";
+    return {
+        statusCode: 200,
+        body: JSON.stringify({ message: `Hello, ${name}!` }),
+    };
+};
+```
+
+6. Click **Deploy**.
+
+---
+
+### Step 2: Create an API Gateway
+
+1. Navigate to **API Gateway** in the AWS Console.
+2. Click **Create API** > REST API (or HTTP API for simpler setup).
+3. For REST API: Choose **REST API** > **Build**.
+4. Name your API (e.g., `HelloWorldAPI`).
+
+---
+
+### Step 3: Connect Lambda to API Gateway
+
+1. In your API, create a **Resource** (e.g., `/hello`).
+2. Add a **GET Method**.
+3. Choose **Lambda Function** as integration type.
+4. Select your Lambda function (e.g., `HelloWorldFunction`).
+5. Grant permission when prompted.
+
+---
+
+### Step 4: Deploy API & Test
+
+1. Click **Actions > Deploy API**.
+2. Create a new stage (e.g., `prod`).
+3. Copy the **Invoke URL**.
+4. Test with your browser or curl:
+
+```bash
+curl "https://<api-id>.execute-api.<region>.amazonaws.com/prod/hello?name=Alice"
+```
+
+**Response:**
+```json
+{"message":"Hello, Alice!"}
+```
+
+---
+
+### Step 5: Secure Your API
+
+- **Use IAM roles with least privilege for Lambda**
+- **Enable API Gateway authentication**
+   - Use API Keys, Cognito User Pools, or Lambda Authorizer
+- **Enable AWS WAF** (Web Application Firewall) for API Gateway
+- **Use HTTPS only**
+- **Enable request validation and throttling**
+- **Encrypt environment variables with KMS**
+- **Monitor with CloudWatch**
+
+---
+
+## 4. Security Best Practices Checklist
+
+- [x] Lambda uses an IAM role with **only required permissions**
+- [x] API Gateway uses **authentication/authorization** (API Key, Cognito, or Lambda Authorizer)
+- [x] Enable **logging** in both Lambda and API Gateway
+- [x] Validate all **inputs** in Lambda
+- [x] Use **VPC** for Lambda if accessing private resources
+- [x] Enable **encryption** for environment variables
+- [x] Set appropriate **timeout and memory** for Lambda
+- [x] Use **rate limiting and throttling** in API Gateway
+- [x] Protect API with **WAF**
+
+---
+
+## 5. References
+
+- [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/latest/dg/welcome.html)
+- [API Gateway Lambda Proxy Integration](https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-integrations.html)
+- [Lambda Security Best Practices](https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html)
+- [API Gateway Security](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-control-access-to-api.html)
+
+---
+
+*For more screenshots and step-by-step images, see the [AWS official getting started guide for Lambda & API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/getting-started.html).*
+
 
 ---
 
@@ -260,33 +415,146 @@ AWS Elastic Kubernetes Service (EKS) is a managed Kubernetes service that simpli
 
 ## 7. VPC (Virtual Private Cloud)
 
-**Purpose:** Isolated network for AWS resources.
+# AWS VPC Deep Dive: Public & Private Subnets, IGW, and NAT Gateway
 
-**Advanced Concepts:**
-- Subnets: Public (internet-facing) vs. private (internal).
-- Route Tables, NAT Gateways/Bastion Hosts for secure access.
-- Network ACLs, Security Groups for traffic filtering.
-- Peering, Transit Gateway, VPC Endpoints for connectivity.
+This guide explains AWS VPC architecture in depth, focusing on the differences and relationships between public and private subnets, Internet Gateway (IGW), and NAT Gateway (NGW).
 
-**Diagram:**
+---
+
+## 1. Core Concepts
+
+### What is a VPC?
+A **Virtual Private Cloud (VPC)** is an isolated, customizable network in AWS where you launch AWS resources.
+
+### What is a Subnet?
+A **subnet** is a range of IP addresses within a VPC. Subnets can be designated as **public** (routable to the internet via IGW) or **private** (not directly routable to the internet).
+
+---
+
+## 2. Public vs Private Subnet: Deep Dive
+
+### Public Subnet
+- **Definition:** A subnet whose route table contains a route to the Internet Gateway (IGW).
+- **Usage:** Host resources that need direct access to the internet (e.g., web servers, load balancers, NAT Gateway itself).
+- **Requirement:** Resources (like EC2) must have a public IP or Elastic IP to be accessible from the internet.
+
+### Private Subnet
+- **Definition:** A subnet **without** a direct route to the IGW. Instead, it may have a route to a NAT Gateway for outbound internet.
+- **Usage:** Host resources that should not be directly accessed from the internet (e.g., databases, application servers).
+- **Requirement:** No public IPs are assigned to instances here.
+
+---
+
+## 3. Internet Gateway (IGW) and NAT Gateway (NGW)
+
+### Internet Gateway (IGW)
+- **Purpose:** Allows communication between resources in your VPC and the internet.
+- **Attachment:** One per VPC.
+- **Subnet Placement:** IGW itself is not “placed” in a subnet; it is attached at the VPC level, but only subnets with a route to the IGW are considered public.
+
+### NAT Gateway (NGW)
+- **Purpose:** Allows resources in private subnets to initiate outbound connections to the internet (e.g., for software updates) but prevents inbound internet connections.
+- **Deployment:** Must be launched in a **public subnet** (where it can access the IGW).
+- **Elastic IP:** Requires an Elastic IP address.
+
+---
+
+## 4. Deep Dive: Routing
+
+### Route Table for Public Subnet
+| Destination | Target    | Purpose                |
+|-------------|-----------|------------------------|
+| VPC CIDR    | local     | Internal communication |
+| 0.0.0.0/0   | igw-xxxx  | Internet access        |
+
+### Route Table for Private Subnet
+| Destination | Target      | Purpose                       |
+|-------------|-------------|-------------------------------|
+| VPC CIDR    | local       | Internal communication        |
+| 0.0.0.0/0   | nat-xxxx    | Outbound internet via NAT GW  |
+
+---
+
+## 5. Can You Place IGW or NGW in a Subnet?
+
+- **IGW:** Cannot be “placed” in a subnet. It is attached at the VPC level, and the subnet’s route table determines if it is public.
+- **NAT Gateway:** Must be launched in a **public subnet** (because it needs a route to the IGW for outbound internet access).  
+  **You cannot place a NAT Gateway in a private subnet**—it will not work.
+
+---
+
+## 6. Example Architecture and Diagram
+
+### CIDR Block: `10.0.0.0/16`
+- **Public Subnet:** `10.0.1.0/24` (for IGW, NAT GW, web servers)
+- **Private Subnet:** `10.0.2.0/24` (for app servers, DB)
+
 ```
-[Internet]
-   |
-[Internet Gateway]
-   |
-+----------------------------+
-|           VPC              |
-|  +----------+   +--------+ |
-|  | Public   |   | Private| |
-|  | Subnet   |   | Subnet | |
-|  +----------+   +--------+ |
-+----------------------------+
-        |            |
-   [EC2 Web]   [EC2 DB, RDS]
+                        (Internet)
+                             |
+                          [IGW]
+                             |
+            +----------------+----------------+
+            |                                 |
+    [Public Subnet]                   [Private Subnet]
+     10.0.1.0/24                        10.0.2.0/24
+        |                                  |
+   +----------+                       +----------+
+   | NAT GW   |<----------------------+|  EC2     |
+   | (with EIP)|   (Outbound only)    | (private) |
+   +----------+                       +----------+
+        |
+   +----------+
+   |  EC2     | (web server, optional)
+   | (public) |
+   +----------+
 ```
 
-**Use Cases:** Multi-tier apps, secure networking, hybrid cloud.
+- **Route Table Public Subnet:**  
+  `0.0.0.0/0` → `IGW`
+- **Route Table Private Subnet:**  
+  `0.0.0.0/0` → `NAT Gateway` (NAT GW in public subnet)
 
+---
+
+## 7. Detailed Steps: How to Build
+
+1. **Create a VPC** (e.g., `10.0.0.0/16`)
+2. **Create two subnets:**
+   - Public: `10.0.1.0/24`
+   - Private: `10.0.2.0/24`
+3. **Create and attach an IGW** to the VPC.
+4. **Create a route table for the public subnet:**
+   - Add route: `0.0.0.0/0` → IGW.
+   - Associate with the public subnet.
+5. **Launch a NAT Gateway** in the public subnet:
+   - Allocate an Elastic IP and associate it.
+6. **Create a route table for the private subnet:**
+   - Add route: `0.0.0.0/0` → NAT Gateway.
+   - Associate with the private subnet.
+7. **Launch EC2 instances:**
+   - Public subnet: assign a public IP (for web server, NAT GW).
+   - Private subnet: do **not** assign a public IP.
+
+---
+
+## 8. Key Points and Gotchas
+
+- **IGW is VPC-wide, not per subnet; subnets are public if they have a route to IGW.**
+- **NAT Gateway is always deployed in a public subnet.**
+- **Private subnets never have direct routes to IGW.**
+- **NAT Gateway enables only outbound internet from private subnets.**
+- **Do not put sensitive resources (DB, etc.) in public subnets.**
+
+---
+
+## 9. References
+
+- [AWS VPC documentation](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Introduction.html)
+- [NAT Gateways](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html)
+- [VPC Scenario: Public and Private Subnets](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Scenario2.html)
+
+---
 ---
 
 ## 8. Route 53
